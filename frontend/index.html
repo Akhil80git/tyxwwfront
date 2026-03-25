@@ -133,7 +133,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
 .nav-count{font-size:10px;color:var(--muted);font-family:var(--mono)}
 .nav-badge{font-size:9px;padding:2px 5px;border-radius:9px;background:var(--s3);color:var(--accent);font-family:var(--mono);font-weight:600;border:1px solid var(--border)}
 
-/* OFFLINE BADGE */
 .offline-badge{display:none;font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px;background:rgba(255,107,107,.1);color:var(--a2);border:1px solid rgba(255,107,107,.3);margin-left:4px}
 .offline-badge.show{display:inline-flex;align-items:center;gap:3px}
 
@@ -150,12 +149,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
 .mobile-timer-badge.danger{color:var(--a2);border-color:var(--a2);animation:tpulse .5s infinite}
 .mobile-chat-btn{background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.3);color:var(--purple);border-radius:7px;padding:5px 9px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0}
 
-/* ═══════════════════════════════════════════════════════════
-   PWA INSTALL BUTTON — FIXED
-   Default: display:none (hidden)
-   .pwa-visible class lagane pe: display:flex (show)
-   PWA mode mein: kabhi show nahi hoga
-   ═══════════════════════════════════════════════════════════ */
 .pwa-install-btn {
   display: none;
   align-items: center;
@@ -172,7 +165,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
   white-space: nowrap;
   animation: fadeIn .3s ease;
 }
-/* Sirf jab .pwa-visible class ho tab show hoga */
 .pwa-install-btn.pwa-visible {
   display: flex !important;
 }
@@ -229,6 +221,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
 .toggle-sw.on::after{left:19px}
 .modal-btn{width:100%;padding:12px;border:none;border-radius:9px;font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;background:var(--accent);color:#000;transition:all .15s;margin-top:4px}
 .modal-btn:hover{filter:brightness(1.1)}
+
+/* BANK STATUS — modal ke andar offline bank info */
+.bank-status-row{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;font-size:11px;margin-top:8px}
+.bank-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.bank-dot.ok{background:var(--accent)}
+.bank-dot.missing{background:var(--a2)}
+.bank-dot.stale{background:var(--a3)}
 
 /* SECTION FILTER CHIPS */
 .sec-filter-chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -428,7 +427,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
 .nd-msg{font-weight:600;margin-bottom:3px}
 .nd-time{font-size:10px;color:var(--muted);font-family:var(--mono)}
 
-/* CONN TOAST */
 .conn-toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);font-weight:700;font-size:12px;padding:8px 18px;border-radius:20px;z-index:9999;font-family:var(--mono);pointer-events:none;animation:fadeIn .3s ease}
 
 /* RESPONSIVE */
@@ -497,7 +495,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
   <div class="sb-logo">
     <div><h1 style="cursor:pointer" onclick="goHome()">📖 Quiz Portal</h1><p>Smart MCQ Practice</p></div>
     <div style="display:flex;gap:6px;align-items:center">
-      <!-- Desktop install button — sidebar mein sirf icon -->
       <button class="pwa-install-btn" id="pwaInstallBtnDesk" onclick="installPWA()" title="Install App">⬇️</button>
       <div class="bell-wrap" onclick="toggleNotifDropdown()">
         <button class="bell-btn">🔔</button>
@@ -522,7 +519,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
     <button class="burger" onclick="openSidebar()">☰</button>
     <h2 id="mobileTitle" style="cursor:pointer" onclick="goHome()">Quiz Portal</h2>
     <div class="mobile-topbar-right">
-      <!-- Mobile install button — topbar mein -->
       <button class="pwa-install-btn" id="pwaInstallBtn" onclick="installPWA()" title="Install App">⬇️ Install</button>
       <div class="mobile-timer-badge" id="mobileTimerBadge" style="display:none">⏱ <span id="mobileTimerDisp">--:--</span></div>
       <div class="bell-wrap" onclick="toggleNotifDropdown()">
@@ -625,6 +621,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
         <span style="font-size:13px">Jo questions pehle aaye hain unhe exclude karo</span>
       </div>
     </div>
+    <!-- ✅ NAYA: Offline bank status -->
+    <div id="bankStatusRow" class="bank-status-row" style="display:none">
+      <div class="bank-dot" id="bankDot"></div>
+      <span id="bankStatusText" style="color:var(--muted)">Checking offline bank...</span>
+    </div>
     <button class="modal-btn" onclick="launchQuiz()">🚀 Start Quiz</button>
   </div>
 </div>
@@ -680,10 +681,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
 
 <script>
 // ═══════════════════════════════════════════════════════════════════
-//  IndexedDB — v3
+//  IndexedDB — v4 (offline_bank store added)
 // ═══════════════════════════════════════════════════════════════════
 const IDB_NAME    = 'mcq_portal_db';
-const IDB_VERSION = 3;
+const IDB_VERSION = 4; // ✅ v3 → v4 (offline_bank store)
 let idb = null;
 
 function openIDB() {
@@ -701,6 +702,9 @@ function openIDB() {
         const qs = db.createObjectStore('questions', { keyPath: 'cacheKey' });
         qs.createIndex('savedAt', 'savedAt');
       }
+      // ✅ NAYA: poora question bank — subject-wise full pool
+      if (!db.objectStoreNames.contains('offline_bank'))
+        db.createObjectStore('offline_bank', { keyPath: 'subject' });
     };
     req.onsuccess = e => { idb = e.target.result; resolve(idb); };
     req.onerror   = e => reject(e.target.error);
@@ -763,6 +767,73 @@ async function loadQuestionsFromIDB(subject, config) {
   return rec.questions;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  ✅ OFFLINE BANK — subject-wise poora question pool
+//  Pehli baar online aao → server se saare questions download → IDB mein save
+//  Baad mein offline bhi → bank se shuffle karke serve
+//  Expiry: 7 din (itne mein naya data check karo)
+// ═══════════════════════════════════════════════════════════════════
+async function saveBankToIDB(subject, questions) {
+  await idbPut('offline_bank', {
+    subject,
+    questions,
+    savedAt: Date.now(),
+    count: questions.length
+  });
+  console.log(`[Bank] ✅ Saved ${questions.length} questions for: ${subject}`);
+}
+
+async function loadFromBank(subject, config = {}) {
+  const rec = await idbGet('offline_bank', subject);
+  if (!rec || !rec.questions?.length) return null;
+
+  // 7 din se purana — stale (background mein refresh hoga)
+  const isStale = Date.now() - rec.savedAt > 7 * 24 * 60 * 60 * 1000;
+
+  let qs = [...rec.questions];
+
+  // Section filter
+  if (config.section && config.section !== 'all') {
+    const filtered = qs.filter(q => q.section === config.section);
+    if (filtered.length > 0) qs = filtered;
+  }
+
+  // Topic filter
+  if (config.topics && config.topics.length > 0) {
+    const topicSet = new Set(config.topics);
+    const filtered = qs.filter(q => topicSet.has(q.topic));
+    if (filtered.length > 0) qs = filtered;
+  }
+
+  // Exclude already-done questions
+  if (config.exclude && config.exclude.length > 0) {
+    const doneSet = new Set(config.exclude);
+    const filtered = qs.filter(q => !doneSet.has(q.question));
+    qs = filtered.length > 0 ? filtered : qs; // sab done → repeat mode
+  }
+
+  // Fisher-Yates shuffle
+  for (let i = qs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [qs[i], qs[j]] = [qs[j], qs[i]];
+  }
+
+  const count = config.count || 100;
+  return {
+    questions: qs.slice(0, count),
+    isStale,
+    totalInBank: rec.questions.length
+  };
+}
+
+// Bank ka status check karo — modal mein dikhane ke liye
+async function checkBankStatus(subject) {
+  const rec = await idbGet('offline_bank', subject);
+  if (!rec) return { status: 'missing', count: 0 };
+  const isStale = Date.now() - rec.savedAt > 7 * 24 * 60 * 60 * 1000;
+  return { status: isStale ? 'stale' : 'ok', count: rec.count || rec.questions?.length || 0 };
+}
+
 async function saveNewsToIDB(type, data) {
   await idbPut('meta', { id: 'news_' + type, data, savedAt: Date.now() });
 }
@@ -774,109 +845,111 @@ async function loadNewsFromIDB(type) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  BACKGROUND PREFETCH — Offline ke liye saara data pehle save karo
-//  Ye tab chalta hai jab user online ho (pehli baar ya daily)
-//  Saare subjects ke questions + topics + news IDB mein store hote hain
+//  ✅ BACKGROUND PREFETCH — COMPLETELY REWRITTEN
+//  Pehli baar (ya 24 ghante baad) → server se SAARE questions download
+//  count: 9999 bhejte hain taaki koi limit na ho
+//  Saara data offline_bank mein save hota hai
 // ═══════════════════════════════════════════════════════════════════
+let prefetchInProgress = false;
+
 async function backgroundPrefetchAll(subjectsList) {
-  // Pehle check karo — aaj prefetch hua hai kya
-  const lastPrefetch = await idbGet('meta', 'last_prefetch');
+  if (prefetchInProgress) return;
+
+  // 24 ghante mein ek baar hi prefetch karo
+  const lastPrefetch = await idbGet('meta', 'last_bank_prefetch');
   const now = Date.now();
-  const SIX_HOURS = 6 * 60 * 60 * 1000;
-  if (lastPrefetch && (now - lastPrefetch.ts) < SIX_HOURS) {
-    console.log('[Prefetch] Already done recently, skipping.');
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  if (lastPrefetch && (now - lastPrefetch.ts) < ONE_DAY) {
+    console.log('[Bank] Prefetch skip — already done in last 24h');
     return;
   }
 
-  console.log('[Prefetch] Starting background data prefetch...');
+  prefetchInProgress = true;
+  console.log('[Bank] 🚀 Starting full offline bank download...');
+  showConnToast('📦 Offline bank download ho raha hai...', 'var(--accent)');
 
-  // Toast dikhao
-  showConnToast('📦 Offline ke liye data save ho raha hai...', 'var(--accent)');
+  let successCount = 0;
 
-  let done = 0;
-  const total = subjectsList.length;
-
-  // 1. Har subject ke topics fetch + save
+  // 1. Har subject ke topics + full question bank save karo
   for (const subj of subjectsList) {
+    // Topics
     try {
-      const res = await fetch(`/api/public/topics/${subj.key}`);
-      if (res.ok) {
-        const topics = await res.json();
+      const topicRes = await fetch(`/api/public/topics/${subj.key}`);
+      if (topicRes.ok) {
+        const topics = await topicRes.json();
         await saveTopicsToIDB(subj.key, topics);
       }
-    } catch(e) { /* offline ho gaya, skip */ }
-  }
+    } catch(e) { console.warn('[Bank] Topics failed for', subj.key); }
 
-  // 2. Har subject ke questions fetch + save (default config: 100 questions, all topics)
-  for (const subj of subjectsList) {
+    // Full question bank — count:9999 = saare questions
     try {
-      const body = { count: 100 };
       const res = await fetch(`/api/public/quiz/${subj.key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify({ count: 9999 }) // ✅ koi limit nahi
       });
       if (res.ok) {
         const result = await res.json();
         if (result.questions?.length) {
-          await saveQuestionsToIDB(subj.key, body, result.questions);
-          console.log(`[Prefetch] ${subj.key}: ${result.questions.length} questions saved`);
+          await saveBankToIDB(subj.key, result.questions);
+          successCount++;
+          showConnToast(`✅ ${subj.label}: ${result.questions.length}Q saved`, 'var(--accent)');
         }
       }
-    } catch(e) { /* skip */ }
-    done++;
-    // Small delay taaki server pe load na pade
-    await new Promise(r => setTimeout(r, 200));
+    } catch(e) {
+      console.warn('[Bank] Quiz fetch failed for', subj.key, e.message);
+    }
+
+    // Server pe load na pade
+    await new Promise(r => setTimeout(r, 400));
   }
 
-  // 3. Mixed quiz bhi save karo
+  // 2. Mixed bank — sab subjects ka combined pool IDB se banao
   try {
-    const body = { count: 100 };
-    const res = await fetch(`/api/public/quiz/mixed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (res.ok) {
-      const result = await res.json();
-      if (result.questions?.length) {
-        await saveQuestionsToIDB('mixed', body, result.questions);
+    const allBanks = await idbGetAll('offline_bank');
+    if (allBanks.length > 0) {
+      // mixed mein news subject exclude karo
+      const allQ = allBanks
+        .filter(b => b.subject !== 'news' && b.subject !== 'mixed')
+        .flatMap(b => b.questions || []);
+      if (allQ.length > 0) {
+        await saveBankToIDB('mixed', allQ);
+        console.log(`[Bank] Mixed bank: ${allQ.length} questions`);
+      }
+    }
+  } catch(e) { console.warn('[Bank] Mixed bank failed', e); }
+
+  // 3. News MCQ bank
+  try {
+    const nRes = await fetch('/api/public/news-quiz?count=9999');
+    if (nRes.ok) {
+      const qs = await nRes.json();
+      if (qs.length) {
+        await saveBankToIDB('news', qs);
+        await saveNewsToIDB('mcq', qs);
+        console.log(`[Bank] News MCQ: ${qs.length} questions`);
       }
     }
   } catch(e) {}
 
-  // 4. News MCQ save karo
+  // 4. News articles + main news
   try {
-    const res = await fetch('/api/public/news-quiz?count=50');
-    if (res.ok) {
-      const qs = await res.json();
-      await saveNewsToIDB('mcq', qs);
-    }
+    const aRes = await fetch('/api/public/news-articles');
+    if (aRes.ok) { const a = await aRes.json(); await saveNewsToIDB('articles', a); }
+  } catch(e) {}
+  try {
+    const mRes = await fetch('/api/news');
+    if (mRes.ok) { const m = await mRes.json(); await saveNewsToIDB('main', m); }
   } catch(e) {}
 
-  // 5. News articles save karo
-  try {
-    const res = await fetch('/api/public/news-articles');
-    if (res.ok) {
-      const articles = await res.json();
-      await saveNewsToIDB('articles', articles);
-    }
-  } catch(e) {}
+  // Timestamp save
+  await idbPut('meta', { id: 'last_bank_prefetch', ts: now });
+  prefetchInProgress = false;
 
-  // 6. Main news save karo
-  try {
-    const res = await fetch('/api/news');
-    if (res.ok) {
-      const news = await res.json();
-      await saveNewsToIDB('main', news);
-    }
-  } catch(e) {}
-
-  // Timestamp save karo
-  await idbPut('meta', { id: 'last_prefetch', ts: now });
-
-  showConnToast('✅ Saara data offline ke liye save ho gaya!', 'var(--accent)');
-  console.log('[Prefetch] Complete! All data saved to IndexedDB.');
+  const totalBanks = await idbGetAll('offline_bank');
+  const totalQ = totalBanks.reduce((s, b) => s + (b.count || 0), 0);
+  showConnToast(`✅ Offline bank ready! ${totalQ.toLocaleString()} questions saved`, 'var(--accent)');
+  console.log(`[Bank] ✅ Complete! ${totalQ} total questions in offline bank`);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1023,77 +1096,48 @@ let chatCurrentKey=null;
 let chatQuestionCtx=null;
 
 // ═══════════════════════════════════════════════════════════════════
-//  PWA INSTALL — COMPLETELY FIXED
-//
-//  Logic:
-//  1. App already PWA mode mein chal raha hai → buttons kabhi nahi dikhenge
-//  2. Browser 'beforeinstallprompt' fire kare → buttons show honge
-//  3. Install complete hone ke baad → buttons hide ho jayenge
-//  4. CSS: .pwa-install-btn { display:none } default
-//          .pwa-install-btn.pwa-visible { display:flex !important }
+//  PWA INSTALL
 // ═══════════════════════════════════════════════════════════════════
 let deferredPrompt = null;
 
-// Check karo kya app already PWA mode mein chal raha hai
 function isAppInstalled() {
   if (window.matchMedia('(display-mode: standalone)').matches) return true;
   if (window.navigator.standalone === true) return true;
   return false;
 }
 
-// Install buttons show/hide karo — sirf class toggle, koi inline style nahi
 function updateInstallBtns(show) {
   const ids = ['pwaInstallBtn', 'pwaInstallBtnDesk'];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (show) {
-      el.classList.add('pwa-visible');
-    } else {
-      el.classList.remove('pwa-visible');
-    }
+    if (show) el.classList.add('pwa-visible');
+    else el.classList.remove('pwa-visible');
   });
 }
 
-// Page load pe — agar already PWA mode mein hai toh kuch nahi karo
-// Buttons default se hidden hain, sirf beforeinstallprompt pe show honge
 if (isAppInstalled()) {
-  // PWA mode mein chal raha hai — buttons permanently hidden
-  console.log('[PWA] Running as installed PWA — install buttons hidden');
+  console.log('[PWA] Running as installed PWA');
 }
 
-// Browser jab install ready kare
 window.addEventListener('beforeinstallprompt', (e) => {
-  // Agar already PWA mode mein chal raha hai toh ignore karo
-  if (isAppInstalled()) {
-    e.preventDefault();
-    return;
-  }
+  if (isAppInstalled()) { e.preventDefault(); return; }
   e.preventDefault();
   deferredPrompt = e;
-  updateInstallBtns(true); // Buttons dikhao
-  console.log('[PWA] Install prompt available — showing install buttons');
+  updateInstallBtns(true);
 });
 
-// Install complete hone par
 window.addEventListener('appinstalled', () => {
   deferredPrompt = null;
-  updateInstallBtns(false); // Buttons hide karo
-  console.log('[PWA] App installed! Hiding install buttons.');
+  updateInstallBtns(false);
 });
 
-// Install button click
 function installPWA() {
   if (!deferredPrompt) return;
   deferredPrompt.prompt();
   deferredPrompt.userChoice.then(choice => {
     deferredPrompt = null;
-    if (choice.outcome === 'accepted') {
-      updateInstallBtns(false);
-      console.log('[PWA] User accepted install');
-    } else {
-      console.log('[PWA] User dismissed install');
-    }
+    if (choice.outcome === 'accepted') updateInstallBtns(false);
   });
 }
 
@@ -1149,14 +1193,14 @@ async function init() {
       setSplashProgress(100);
       if (!idbSubjects.length) setTimeout(hideSplash, 300);
 
-      // Splash hide hone ke baad silently background mein saara data prefetch karo
-      // Taaki user pehli baar online aaye → data save ho → baad mein offline bhi sab chale
-      setTimeout(() => backgroundPrefetchAll(fresh), 1500);
+      // ✅ Splash hide hone ke 2 sec baad background mein poora bank download karo
+      setTimeout(() => backgroundPrefetchAll(fresh), 2000);
     }
   } catch(e) {
     if (!idbSubjects.length) {
       setSplashStatus('⚠️ Offline mode — cached data use ho raha hai');
     }
+    setTimeout(hideSplash, 1000);
   }
 
   checkRestored();
@@ -1167,11 +1211,11 @@ async function init() {
     showConnToast('🟢 Back online! Syncing...', 'var(--accent)');
     refreshSubjectCounts();
     loadPubNotifs();
-    // Wapas online aane par bhi prefetch karo (agar 6 ghante se zyada ho gaye)
-    setTimeout(() => backgroundPrefetchAll(subjects), 2000);
+    // Wapas online aao → stale bank ko refresh karo
+    setTimeout(() => backgroundPrefetchAll(subjects), 3000);
   });
   window.addEventListener('offline', () => {
-    showConnToast('🔴 Offline mode — cached data use hoga', 'var(--a2)');
+    showConnToast('🔴 Offline mode — bank se questions milenge', 'var(--a2)');
   });
 }
 
@@ -1182,7 +1226,7 @@ function showConnToast(msg, color) {
   t.style.cssText = `background:var(--s2);color:${color};border:1px solid ${color}`;
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .4s'; setTimeout(()=>t.remove(),400); }, 3000);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .4s'; setTimeout(()=>t.remove(),400); }, 3500);
 }
 
 if ('serviceWorker' in navigator) {
@@ -1313,6 +1357,32 @@ async function openConfig(subject) {
   if (window.innerWidth <= 768) closeSidebar();
   const subLabel = subject==="mixed" ? "Mixed Test" : subjects.find(s=>s.key===subject)?.label || subject;
   document.getElementById("modalTitle").textContent = `${ICONS[subject]||'📚'} ${subLabel} — Configure`;
+
+  // ✅ Offline bank status dikhao
+  const bankRow = document.getElementById('bankStatusRow');
+  const bankDot = document.getElementById('bankDot');
+  const bankText = document.getElementById('bankStatusText');
+  if (bankRow && bankDot && bankText) {
+    bankRow.style.display = 'flex';
+    bankDot.className = 'bank-dot';
+    bankText.textContent = 'Bank check kar raha hoon...';
+    checkBankStatus(subject).then(({ status, count }) => {
+      if (status === 'ok') {
+        bankDot.className = 'bank-dot ok';
+        bankText.textContent = `✅ Offline bank ready — ${count.toLocaleString()} questions (7 din valid)`;
+        bankText.style.color = 'var(--accent)';
+      } else if (status === 'stale') {
+        bankDot.className = 'bank-dot stale';
+        bankText.textContent = `⚠️ Bank purana hai — ${count.toLocaleString()} questions cached (refresh hoga)`;
+        bankText.style.color = 'var(--a3)';
+      } else {
+        bankDot.className = 'bank-dot missing';
+        bankText.textContent = '❌ Offline bank nahi hai — internet se questions aayenge';
+        bankText.style.color = 'var(--a2)';
+      }
+    });
+  }
+
   const topicSec = document.getElementById("topicSection");
   if (subject === "mixed") {
     topicSec.style.display = "none";
@@ -1370,6 +1440,7 @@ async function launchQuiz() {
 }
 
 // ── Quiz ──────────────────────────────────────────────────────────
+// ✅ UPDATED: Pehle offline bank check karo, phir server, phir old cache
 async function startQuiz(subject, restore=null, config={}) {
   currentSubject = subject; setActiveNav(subject);
   if (restore) {
@@ -1392,47 +1463,88 @@ async function startQuiz(subject, restore=null, config={}) {
   if (config.exclude && doneQuestions.length) body.exclude = doneQuestions.slice(-1000);
   if (config.section && config.section !== 'all') body.section = config.section;
 
-  let cachedQs = await loadQuestionsFromIDB(subject, body);
-  let result;
+  let qs = null;
+  let fromBank = false;
 
-  try {
-    const res = await fetch(`/api/public/quiz/${subject}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-    result = await res.json();
-    if (result.questions?.length) {
-      await saveQuestionsToIDB(subject, body, result.questions);
-    }
-  } catch(e) {
-    if (cachedQs && cachedQs.length) {
-      result = { questions: cachedQs, message: "ok", fromCache: true };
-      setTimeout(() => showConnToast('📦 Offline — cached questions use ho rahe hain', 'var(--accent)'), 300);
+  // ✅ STEP 1: Pehle offline bank check karo
+  const bankResult = await loadFromBank(subject, body);
+  if (bankResult && bankResult.questions.length > 0) {
+    qs = bankResult.questions;
+    fromBank = true;
+    if (bankResult.isStale) {
+      // Stale bank — background mein refresh karo, abhi bank se hi serve karo
+      setTimeout(() => backgroundPrefetchAll(subjects), 1000);
+      showConnToast(`📦 Offline bank (${bankResult.totalInBank.toLocaleString()} total) — refreshing...`, 'var(--a3)');
     } else {
-      document.getElementById("qArea").innerHTML = `
-        <div style="text-align:center;padding:40px;color:var(--muted)">
-          <div style="font-size:40px;margin-bottom:12px">📵</div>
-          <div style="font-size:15px;font-weight:700;color:var(--a2);margin-bottom:8px">Offline hai</div>
-          <div style="font-size:13px">Aur is subject ke liye koi cached questions nahi hain.<br>Pehle ek baar online karke quiz karo — phir offline bhi chalega.</div>
-        </div>`;
-      return;
+      showConnToast(`📦 Offline bank — ${bankResult.totalInBank.toLocaleString()} questions available`, 'var(--accent)');
     }
   }
 
-  let qs = result.questions || [];
-  if (result.message === "all_done" && qs.length) {
-    setTimeout(() => showConnToast('✅ Saare questions ho gaye! Phir se practice.', 'var(--a3)'), 500);
-  } else if (!qs.length) {
-    document.getElementById("qArea").innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:32px">😕</div><br>Koi questions nahi mili.</div>`;
+  // ✅ STEP 2: Agar online hai toh server se bhi try karo (fresh data)
+  if (navigator.onLine) {
+    try {
+      const res = await fetch(`/api/public/quiz/${subject}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const result = await res.json();
+      if (result.questions?.length) {
+        qs = result.questions; // server fresh data prefer karo
+        fromBank = false;
+        // Background mein bank bhi update karo
+        if (result.questions.length > 50) {
+          // Sirf agar kaafi questions aaye toh bank update karo
+          fetch(`/api/public/quiz/${subject}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ count: 9999 })
+          }).then(r => r.json()).then(async fullResult => {
+            if (fullResult.questions?.length > (bankResult?.totalInBank || 0)) {
+              await saveBankToIDB(subject, fullResult.questions);
+            }
+          }).catch(() => {});
+        }
+      }
+    } catch(e) {
+      // Server failed — bank se chal jayega (already set above)
+      if (!qs) {
+        // ✅ STEP 3: Bank bhi nahi → old questions cache check
+        const cachedQs = await loadQuestionsFromIDB(subject, body);
+        if (cachedQs) {
+          qs = cachedQs;
+          showConnToast('📦 Cached questions use ho rahe hain', 'var(--accent)');
+        }
+      }
+    }
+  } else if (!qs) {
+    // Offline aur bank bhi nahi
+    const cachedQs = await loadQuestionsFromIDB(subject, body);
+    if (cachedQs) {
+      qs = cachedQs;
+      showConnToast('📦 Cached questions use ho rahe hain', 'var(--accent)');
+    }
+  }
+
+  if (!qs || qs.length === 0) {
+    document.getElementById("qArea").innerHTML = `
+      <div style="text-align:center;padding:40px;color:var(--muted)">
+        <div style="font-size:40px;margin-bottom:12px">📵</div>
+        <div style="font-size:15px;font-weight:700;color:var(--a2);margin-bottom:8px">Questions nahi mili</div>
+        <div style="font-size:13px">Internet se connect karo aur ek baar quiz karo —<br>phir offline bank automatically build ho jayega.</div>
+      </div>`;
     return;
   }
 
-  if (config.section && config.section !== 'all') {
+  // Section filter (agar bank se aaya aur filter nahi hua)
+  if (config.section && config.section !== 'all' && !fromBank) {
     const filtered = qs.filter(q => q.section === config.section);
-    qs = filtered.length > 0 ? filtered : qs;
+    if (filtered.length > 0) qs = filtered;
   }
+
+  // Section order sort
   qs.sort((a,b) => { const oa=SEC_ORDER[a.section]||99, ob=SEC_ORDER[b.section]||99; return oa-ob; });
+
   questions = qs;
   answers={}; currentQIdx=0; timeLeft=questions.length*SEC_PER_Q;
   shortExpCache={}; feedbackCache={}; chatContexts={};
@@ -1704,14 +1816,26 @@ async function startNewsQuiz() {
   setActiveNav("news-mcq"); closeSidebar(); showScreen("quiz");
   document.getElementById("qArea").innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:32px;margin-bottom:12px">📰</div>News MCQs load ho rahe hain...</div>`;
   let qs = [];
+
+  // Bank se try karo pehle
+  const bankResult = await loadFromBank('news', { count: 20 });
+  if (bankResult?.questions?.length) qs = bankResult.questions;
+
   try {
     const res=await fetch("/api/public/news-quiz?count=20");
-    qs=await res.json();
-    await saveNewsToIDB('mcq', qs);
+    const fresh = await res.json();
+    if (fresh.length) {
+      qs = fresh;
+      await saveNewsToIDB('mcq', fresh);
+      await saveBankToIDB('news', fresh);
+    }
   } catch(e) {
-    const cached = await loadNewsFromIDB('mcq');
-    if (cached) { qs = cached; showConnToast('📦 Cached news MCQs', 'var(--accent)'); }
+    if (!qs.length) {
+      const cached = await loadNewsFromIDB('mcq');
+      if (cached) { qs = cached; showConnToast('📦 Cached news MCQs', 'var(--accent)'); }
+    }
   }
+
   if (!qs.length) {
     document.getElementById("qArea").innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:32px">😕</div><br>Koi News MCQ nahi mili.</div>`;
     return;
@@ -1756,6 +1880,12 @@ function closeNewsArticles() {
 }
 
 async function loadNewsMcqCount() {
+  // Bank se count dekho pehle
+  const bankRec = await idbGet('offline_bank', 'news');
+  if (bankRec?.count) {
+    document.getElementById("newsMcqCount").textContent = bankRec.count + "Q (offline)";
+    return;
+  }
   try {
     const res=await fetch("/api/public/news-quiz?count=1000"); const qs=await res.json();
     document.getElementById("newsMcqCount").textContent=qs.length+"Q available";
