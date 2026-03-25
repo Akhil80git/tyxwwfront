@@ -774,6 +774,112 @@ async function loadNewsFromIDB(type) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  BACKGROUND PREFETCH — Offline ke liye saara data pehle save karo
+//  Ye tab chalta hai jab user online ho (pehli baar ya daily)
+//  Saare subjects ke questions + topics + news IDB mein store hote hain
+// ═══════════════════════════════════════════════════════════════════
+async function backgroundPrefetchAll(subjectsList) {
+  // Pehle check karo — aaj prefetch hua hai kya
+  const lastPrefetch = await idbGet('meta', 'last_prefetch');
+  const now = Date.now();
+  const SIX_HOURS = 6 * 60 * 60 * 1000;
+  if (lastPrefetch && (now - lastPrefetch.ts) < SIX_HOURS) {
+    console.log('[Prefetch] Already done recently, skipping.');
+    return;
+  }
+
+  console.log('[Prefetch] Starting background data prefetch...');
+
+  // Toast dikhao
+  showConnToast('📦 Offline ke liye data save ho raha hai...', 'var(--accent)');
+
+  let done = 0;
+  const total = subjectsList.length;
+
+  // 1. Har subject ke topics fetch + save
+  for (const subj of subjectsList) {
+    try {
+      const res = await fetch(`/api/public/topics/${subj.key}`);
+      if (res.ok) {
+        const topics = await res.json();
+        await saveTopicsToIDB(subj.key, topics);
+      }
+    } catch(e) { /* offline ho gaya, skip */ }
+  }
+
+  // 2. Har subject ke questions fetch + save (default config: 100 questions, all topics)
+  for (const subj of subjectsList) {
+    try {
+      const body = { count: 100 };
+      const res = await fetch(`/api/public/quiz/${subj.key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        const result = await res.json();
+        if (result.questions?.length) {
+          await saveQuestionsToIDB(subj.key, body, result.questions);
+          console.log(`[Prefetch] ${subj.key}: ${result.questions.length} questions saved`);
+        }
+      }
+    } catch(e) { /* skip */ }
+    done++;
+    // Small delay taaki server pe load na pade
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  // 3. Mixed quiz bhi save karo
+  try {
+    const body = { count: 100 };
+    const res = await fetch(`/api/public/quiz/mixed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (res.ok) {
+      const result = await res.json();
+      if (result.questions?.length) {
+        await saveQuestionsToIDB('mixed', body, result.questions);
+      }
+    }
+  } catch(e) {}
+
+  // 4. News MCQ save karo
+  try {
+    const res = await fetch('/api/public/news-quiz?count=50');
+    if (res.ok) {
+      const qs = await res.json();
+      await saveNewsToIDB('mcq', qs);
+    }
+  } catch(e) {}
+
+  // 5. News articles save karo
+  try {
+    const res = await fetch('/api/public/news-articles');
+    if (res.ok) {
+      const articles = await res.json();
+      await saveNewsToIDB('articles', articles);
+    }
+  } catch(e) {}
+
+  // 6. Main news save karo
+  try {
+    const res = await fetch('/api/news');
+    if (res.ok) {
+      const news = await res.json();
+      await saveNewsToIDB('main', news);
+    }
+  } catch(e) {}
+
+  // Timestamp save karo
+  await idbPut('meta', { id: 'last_prefetch', ts: now });
+
+  showConnToast('✅ Saara data offline ke liye save ho gaya!', 'var(--accent)');
+  console.log('[Prefetch] Complete! All data saved to IndexedDB.');
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  SPLASH
 // ═══════════════════════════════════════════════════════════════════
 let splashHidden   = false;
@@ -1042,6 +1148,10 @@ async function init() {
       setSplashStatus('Ready! ✓', true);
       setSplashProgress(100);
       if (!idbSubjects.length) setTimeout(hideSplash, 300);
+
+      // Splash hide hone ke baad silently background mein saara data prefetch karo
+      // Taaki user pehli baar online aaye → data save ho → baad mein offline bhi sab chale
+      setTimeout(() => backgroundPrefetchAll(fresh), 1500);
     }
   } catch(e) {
     if (!idbSubjects.length) {
@@ -1057,6 +1167,8 @@ async function init() {
     showConnToast('🟢 Back online! Syncing...', 'var(--accent)');
     refreshSubjectCounts();
     loadPubNotifs();
+    // Wapas online aane par bhi prefetch karo (agar 6 ghante se zyada ho gaye)
+    setTimeout(() => backgroundPrefetchAll(subjects), 2000);
   });
   window.addEventListener('offline', () => {
     showConnToast('🔴 Offline mode — cached data use hoga', 'var(--a2)');
