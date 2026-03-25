@@ -1,19 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
-//  MCQ Quiz Portal — Service Worker  v4.0
-//  Full offline support — sirf AI explain online chahiye
+//  MCQ Quiz Portal — Service Worker  v5.0 (Updated)
+//  Full offline support — Optimized for index.html & Root URL
 // ═══════════════════════════════════════════════════════════════
 
-const CACHE_STATIC = "mcq-static-v4.0";
-const CACHE_API    = "mcq-api-v4.0";
+const CACHE_STATIC = "mcq-static-v5.0";
+const CACHE_API    = "mcq-api-v5.0";
 
+// Updated Shell Assets: Yahan se public.html hatakar / aur index.html dala hai
 const SHELL_ASSETS = [
-  "/public.html",
+  "/",
+  "/index.html",
   "/manifest.json",
   "/icon-192.png",
   "/icon512.png",
+  "/sw.js"
 ];
 
-// Ye APIs cache hongi (stale-while-revalidate)
 const API_CACHE_PATTERNS = [
   "/api/public/subjects",
   "/api/public/topics/",
@@ -24,7 +26,6 @@ const API_CACHE_PATTERNS = [
   "/api/notifications",
 ];
 
-// Ye kabhi cache nahi honge (live AI only)
 const NEVER_CACHE = [
   "/api/public/short-explain",
   "/api/public/chat",
@@ -35,7 +36,7 @@ const NEVER_CACHE = [
 //  INSTALL
 // ══════════════════════════════════════════════════════════════
 self.addEventListener("install", e => {
-  console.log("[SW v4.0] Installing...");
+  console.log("[SW v5.0] Installing...");
   e.waitUntil(
     caches.open(CACHE_STATIC).then(cache =>
       Promise.allSettled(
@@ -51,7 +52,7 @@ self.addEventListener("install", e => {
 });
 
 // ══════════════════════════════════════════════════════════════
-//  ACTIVATE
+//  ACTIVATE (Purane Caches Delete Karega)
 // ══════════════════════════════════════════════════════════════
 self.addEventListener("activate", e => {
   e.waitUntil(
@@ -59,7 +60,10 @@ self.addEventListener("activate", e => {
       Promise.all(
         keys
           .filter(k => k !== CACHE_STATIC && k !== CACHE_API)
-          .map(k => { console.log("[SW] Deleting:", k); return caches.delete(k); })
+          .map(k => { 
+            console.log("[SW] Deleting Old Cache:", k); 
+            return caches.delete(k); 
+          })
       )
     )
   );
@@ -72,10 +76,8 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
 
-  // Socket.io — never intercept
   if (url.pathname.startsWith("/socket.io")) return;
 
-  // AI endpoints — network only, offline pe graceful error
   const isNeverCache = NEVER_CACHE.some(p => url.pathname.includes(p));
   if (isNeverCache) {
     e.respondWith(
@@ -89,7 +91,6 @@ self.addEventListener("fetch", e => {
     return;
   }
 
-  // POST/PUT/DELETE results save — network, offline pe queue (future)
   if (e.request.method !== "GET") {
     e.respondWith(
       fetch(e.request).catch(() =>
@@ -102,37 +103,33 @@ self.addEventListener("fetch", e => {
     return;
   }
 
-  // API routes — stale-while-revalidate
   const isApiRoute = API_CACHE_PATTERNS.some(p => url.pathname.includes(p));
   if (isApiRoute) {
     e.respondWith(staleWhileRevalidate(e.request, CACHE_API));
     return;
   }
 
-  // HTML shell — cache first
-  if (url.pathname === "/" || url.pathname === "/public" || url.pathname.endsWith(".html")) {
+  // HTML shell logic: Redirect / aur index.html properly
+  if (url.pathname === "/" || url.pathname.endsWith("index.html") || url.pathname.endsWith(".html")) {
     e.respondWith(
       caches.match(e.request).then(cached => {
-        if (cached) {
-          // Background update
-          fetch(e.request, { cache: "no-store" })
-            .then(res => {
-              if (res && res.ok)
-                caches.open(CACHE_STATIC).then(c => c.put(e.request, res.clone()));
-            }).catch(() => {});
-          return cached;
-        }
-        return fetch(e.request).catch(() =>
-          new Response("<h1>Offline</h1><p>Internet check karo.</p>", {
+        const fetchPromise = fetch(e.request, { cache: "no-store" })
+          .then(res => {
+            if (res && res.ok) {
+              caches.open(CACHE_STATIC).then(c => c.put(e.request, res.clone()));
+            }
+            return res;
+          }).catch(() => null);
+
+        return cached || fetchPromise || new Response("<h1>Offline</h1><p>Internet check karo.</p>", {
             headers: { "Content-Type": "text/html" }
-          })
-        );
+        });
       })
     );
     return;
   }
 
-  // Static assets — cache first
+  // Static assets
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
@@ -146,9 +143,6 @@ self.addEventListener("fetch", e => {
   );
 });
 
-// ══════════════════════════════════════════════════════════════
-//  STALE WHILE REVALIDATE
-// ══════════════════════════════════════════════════════════════
 async function staleWhileRevalidate(request, cacheName) {
   const cache  = await caches.open(cacheName);
   const cached = await cache.match(request);
@@ -157,7 +151,6 @@ async function staleWhileRevalidate(request, cacheName) {
     .then(async res => {
       if (res && res.status === 200) {
         await cache.put(request, res.clone());
-        // Clients ko notify karo — fresh data
         const clients = await self.clients.matchAll({ type: "window" });
         clients.forEach(c => c.postMessage({ type: "SW_DATA_UPDATED", url: request.url }));
       }
@@ -165,22 +158,9 @@ async function staleWhileRevalidate(request, cacheName) {
     })
     .catch(() => null);
 
-  if (cached) return cached;
-
-  const networkRes = await networkFetch;
-  if (networkRes) return networkRes;
-
-  return new Response(
-    JSON.stringify({ error: "offline", cached: false }),
-    { status: 503, headers: { "Content-Type": "application/json" } }
-  );
+  return cached || networkFetch;
 }
 
-// ══════════════════════════════════════════════════════════════
-//  MESSAGE HANDLER
-// ══════════════════════════════════════════════════════════════
 self.addEventListener("message", e => {
   if (e.data?.type === "SKIP_WAITING") self.skipWaiting();
-  if (e.data?.type === "IDB_READY")
-    console.log("[SW] IDB ready, subjects:", e.data.subjectCount);
 });
